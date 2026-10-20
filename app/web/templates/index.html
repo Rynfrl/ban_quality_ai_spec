@@ -1,0 +1,1127 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ban Quality ML — Sistem Prediksi Kualitas Vulkanisasi Ban</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>⚙️</text></svg>">
+  <link rel="stylesheet" href="/static/css/app.css?v=4.0">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    /* Direct embedded failsafe styles for Neuron Visualizer */
+    .neuron-canvas-container {
+      position: relative !important;
+      width: 100% !important;
+      background: radial-gradient(circle at 50% 50%, #0d1527 0%, #080c16 100%) !important;
+      border-radius: 12px !important;
+      border: 1px solid #1e293b !important;
+      box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.4) !important;
+      overflow: hidden !important;
+      display: flex !important;
+      justify-content: center !important;
+      align-items: center !important;
+      min-height: 500px !important;
+    }
+    #neuronCanvas {
+      display: block !important;
+      width: 100% !important;
+      height: 500px !important;
+      cursor: crosshair !important;
+    }
+    .neuron-tooltip {
+      position: absolute;
+      pointer-events: none;
+      background: rgba(15, 23, 42, 0.94);
+      backdrop-filter: blur(8px);
+      border: 1px solid #38bdf8;
+      border-radius: 6px;
+      color: #f1f5f9;
+      padding: 0.5rem 0.75rem;
+      font-size: 0.75rem;
+      z-index: 50;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+      max-width: 260px;
+      transform: translate(-50%, -120%);
+    }
+    .layer-telemetry-bar {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 0.65rem;
+    }
+    .telemetry-item {
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 10px;
+      padding: 0.5rem 0.75rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+    }
+    .telemetry-badge {
+      font-size: 0.7rem;
+      font-weight: 700;
+      padding: 0.15rem 0.45rem;
+      border-radius: 4px;
+      width: fit-content;
+    }
+    .badge-input { background: #e0f2fe; color: #0369a1; }
+    .badge-h1 { background: #dcfce7; color: #15803d; }
+    .badge-h2 { background: #fef3c7; color: #b45309; }
+    .badge-out { background: #ede9fe; color: #6d28d9; }
+    .telemetry-text {
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: #334155;
+      font-family: 'JetBrains Mono', monospace;
+    }
+    .viz-simulation-panel {
+      background: #f1f5f9;
+      border: 1px solid #e2e8f0;
+      border-radius: 10px;
+      padding: 0.85rem 1rem;
+    }
+    .sim-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+    }
+    .sim-slider-col {
+      display: flex;
+      flex-direction: column;
+      gap: 0.35rem;
+    }
+    .sim-slider-label {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.75rem;
+      color: #334155;
+    }
+    .sim-slider-label strong {
+      font-family: 'JetBrains Mono', monospace;
+      color: #0284c7;
+    }
+    .viz-legend-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+      padding: 0.5rem 0;
+      border-top: 1px solid #e2e8f0;
+    }
+    .legend-group {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      flex-wrap: wrap;
+    }
+    .legend-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      font-size: 0.75rem;
+      color: #334155;
+      font-weight: 500;
+    }
+    .legend-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      display: inline-block;
+    }
+    .legend-dot.active-glow {
+      background: #38bdf8;
+      box-shadow: 0 0 8px #38bdf8;
+    }
+    .legend-dot.inactive-dot {
+      background: #334155;
+      border: 1px solid #64748b;
+    }
+    .legend-line {
+      width: 18px;
+      height: 3px;
+      border-radius: 2px;
+      display: inline-block;
+    }
+    .legend-line.line-pos { background: #38bdf8; }
+    .legend-line.line-neg { background: #f97316; }
+    .neuron-inspector-box {
+      background: #ffffff;
+      border: 1px solid #94a3b8;
+      border-radius: 10px;
+      padding: 0.85rem 1.15rem;
+    }
+    .inspector-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid #e2e8f0;
+      padding-bottom: 0.5rem;
+    }
+    .ins-metric {
+      display: flex;
+      flex-direction: column;
+      gap: 0.2rem;
+    }
+    .ins-label {
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      font-weight: 700;
+      color: #64748b;
+    }
+    .ins-value {
+      font-size: 1.1rem;
+      font-weight: 800;
+      color: #0f172a;
+    }
+    .neuron-live-summary {
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 10px;
+      padding: 0.75rem 0.85rem;
+    }
+    .neuron-summary-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .neuron-flow-pills {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: #ffffff;
+      border: 1px solid #e2e8f0;
+      border-radius: 6px;
+      padding: 0.4rem 0.65rem;
+    }
+    .flow-pill {
+      display: flex;
+      align-items: center;
+      gap: 0.35rem;
+    }
+    .pill-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #94a3b8;
+    }
+    .pill-dot.dot-input { background: #0284c7; }
+    .pill-dot.dot-h1.active { background: #16a34a; box-shadow: 0 0 6px #16a34a; }
+    .pill-dot.dot-h2.active { background: #d97706; box-shadow: 0 0 6px #d97706; }
+    .pill-dot.dot-out.good { background: #16a34a; }
+    .pill-dot.dot-out.bad { background: #dc2626; }
+    .pill-title { font-size: 0.7rem; color: #64748b; font-weight: 600; }
+    .pill-val { font-size: 0.75rem; font-weight: 700; font-family: 'JetBrains Mono', monospace; }
+    .flow-pill-arrow { color: #cbd5e1; font-size: 0.75rem; }
+    .minigrid-container { display: flex; flex-direction: column; gap: 0.3rem; }
+    .minigrid-row { display: flex; align-items: center; gap: 0.5rem; }
+    .minigrid-label { font-size: 0.68rem; font-weight: 600; color: #64748b; width: 78px; flex-shrink: 0; }
+    .neuron-minigrid { display: flex; flex-wrap: wrap; gap: 3px; flex: 1; }
+    .mini-cell { width: 9px; height: 9px; border-radius: 2px; background: #e2e8f0; }
+    .mini-cell.active-h1 { background: #10b981; box-shadow: 0 0 4px rgba(16, 185, 129, 0.6); }
+    .mini-cell.active-h2 { background: #f59e0b; box-shadow: 0 0 4px rgba(245, 158, 11, 0.6); }
+    .mini-cell.inactive { background: #cbd5e1; }
+  </style>
+</head>
+<body>
+  <!-- Header Bar -->
+  <header class="top-nav">
+    <div class="nav-container">
+      <div class="brand">
+        <div class="brand-icon">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"></circle>
+            <circle cx="12" cy="12" r="4"></circle>
+            <path d="M12 2v6M12 16v6M2 12h6M16 12h6"></path>
+          </svg>
+        </div>
+        <div>
+          <h1 class="brand-title">Ban Quality ML</h1>
+          <p class="brand-subtitle">Industrial Vulcanization Quality Intelligence</p>
+        </div>
+      </div>
+      <div class="header-badges">
+        <span class="badge badge-outline" id="headerModelVer">Versi: {{ model_version }}</span>
+        <span class="badge" id="serviceStatusBadge">
+          <span class="status-dot"></span> Memeriksa Status...
+        </span>
+      </div>
+    </div>
+  </header>
+
+  <!-- Navigation Tabs -->
+  <nav class="sub-nav">
+    <div class="nav-container">
+      <div class="tabs-scroll" role="tablist">
+        <button class="tab-btn active" data-tab="tab-live-predict">Demo Live Prediksi</button>
+        <button class="tab-btn" data-tab="tab-overview">1. Gambaran</button>
+        <button class="tab-btn" data-tab="tab-data">2. Data & Karakteristik</button>
+        <button class="tab-btn" data-tab="tab-preprocessing">3. Preprocessing</button>
+        <button class="tab-btn" data-tab="tab-model">4. Model ReLU</button>
+        <button class="tab-btn" data-tab="tab-training">5. Training Loop</button>
+        <button class="tab-btn" data-tab="tab-evaluation">6. Evaluasi Model</button>
+        <button class="tab-btn" data-tab="tab-artifacts">7. Simpan JSON & Artifacts</button>
+        <button class="tab-btn" data-tab="tab-guide">8. Cara Menjalankan</button>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Main Content Layout -->
+  <main class="main-content">
+    <div class="container">
+
+      <!-- SECTION: DEMO LIVE PREDIKSI -->
+      <section id="tab-live-predict" class="tab-panel active">
+        <div class="section-header">
+          <h2>Prediksi Kualitas Proses Vulkanisasi Ban</h2>
+          <p class="text-muted">Masukkan 5 parameter proses produksi dan kekerasan karet secara live.</p>
+        </div>
+
+        <div class="grid grid-2cols">
+          <!-- Form Input Card -->
+          <div class="card">
+            <div class="card-header">
+              <h3 class="card-title">Parameter Input Proses</h3>
+              <div class="preset-dropdown">
+                <span class="text-xs text-muted">Contoh Preset:</span>
+                <button type="button" class="btn btn-sm btn-ghost" id="presetIdeal">Ideal Center</button>
+                <button type="button" class="btn btn-sm btn-ghost" id="presetLowTemp">Batas Suhu Bawah</button>
+                <button type="button" class="btn btn-sm btn-ghost" id="presetHighTemp">Batas Suhu Atas</button>
+              </div>
+            </div>
+            
+            <form id="predictionForm" class="prediction-form">
+              <!-- Suhu -->
+              <div class="form-group">
+                <div class="form-label-row">
+                  <label for="inputSuhu">Suhu Curing (°C)</label>
+                  <span class="range-badge" id="badgeSuhu">Memeriksa rentang...</span>
+                </div>
+                <div class="input-slider-group">
+                  <input type="number" id="inputSuhu" name="suhu" min="100" max="250" step="0.1" value="160.0" class="form-control" required>
+                  <input type="range" id="sliderSuhu" min="140" max="180" step="0.5" value="160.0" class="slider-control">
+                </div>
+                <div class="form-hint">Dataset: 140–180 °C | <strong>Rentang Ideal: 150–165 °C</strong></div>
+              </div>
+
+              <!-- Tekanan -->
+              <div class="form-group">
+                <div class="form-label-row">
+                  <label for="inputTekanan">Tekanan Cetakan (bar)</label>
+                  <span class="range-badge" id="badgeTekanan">Memeriksa rentang...</span>
+                </div>
+                <div class="input-slider-group">
+                  <input type="number" id="inputTekanan" name="tekanan" min="5" max="50" step="0.1" value="20.0" class="form-control" required>
+                  <input type="range" id="sliderTekanan" min="15" max="25" step="0.1" value="20.0" class="slider-control">
+                </div>
+                <div class="form-hint">Dataset: 15–25 bar | <strong>Rentang Ideal: 18–22 bar</strong></div>
+              </div>
+
+              <!-- Waktu Curing -->
+              <div class="form-group">
+                <div class="form-label-row">
+                  <label for="inputWaktu">Waktu Curing (menit)</label>
+                  <span class="range-badge" id="badgeWaktu">Memeriksa rentang...</span>
+                </div>
+                <div class="input-slider-group">
+                  <input type="number" id="inputWaktu" name="waktu_curing" min="1" max="60" step="0.1" value="11.5" class="form-control" required>
+                  <input type="range" id="sliderWaktu" min="8" max="15" step="0.1" value="11.5" class="slider-control">
+                </div>
+                <div class="form-hint">Dataset: 8–15 menit | <strong>Rentang Ideal: 10–13 menit</strong></div>
+              </div>
+
+              <!-- Rasio Karet -->
+              <div class="form-group">
+                <div class="form-label-row">
+                  <label for="inputRasio">Rasio Karet (-)</label>
+                  <span class="range-badge" id="badgeRasio">Memeriksa rentang...</span>
+                </div>
+                <div class="input-slider-group">
+                  <input type="number" id="inputRasio" name="rasio_karet" min="0.1" max="1.0" step="0.01" value="0.60" class="form-control" required>
+                  <input type="range" id="sliderRasio" min="0.4" max="0.8" step="0.01" value="0.60" class="slider-control">
+                </div>
+                <div class="form-hint">Dataset: 0.40–0.80 | <strong>Rentang Ideal: 0.50–0.70</strong></div>
+              </div>
+
+              <!-- Kekerasan Karet -->
+              <div class="form-group">
+                <div class="form-label-row">
+                  <label for="inputKekerasan">Kekerasan Karet (Shore A)</label>
+                  <span class="range-badge" id="badgeKekerasan">Memeriksa rentang...</span>
+                </div>
+                <div class="input-slider-group">
+                  <input type="number" id="inputKekerasan" name="kekerasan_karet" min="30" max="100" step="0.1" value="65.0" class="form-control" required>
+                  <input type="range" id="sliderKekerasan" min="55" max="75" step="0.1" value="65.0" class="slider-control">
+                </div>
+                <div class="form-hint">Dataset: 55.1–75.0 Shore A | <strong>Rentang Ideal: 60.0–70.0 Shore A</strong></div>
+              </div>
+
+              <div class="form-actions">
+                <button type="submit" class="btn btn-primary btn-block" id="btnSubmitPredict">
+                  <span class="btn-text">Jalankan Prediksi Model</span>
+                  <span class="spinner" style="display: none;"></span>
+                </button>
+              </div>
+            </form>
+          </div>
+
+          <!-- Result Card -->
+          <div class="card result-card" id="resultCardContainer">
+            <div class="card-header">
+              <h3 class="card-title">Hasil Prediksi Model</h3>
+              <span class="badge badge-outline" id="resultModelVersion">-</span>
+            </div>
+
+            <!-- Initial State -->
+            <div id="stateInitial" class="state-container">
+              <div class="empty-icon">
+                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                  <path d="M22 12h-4l-3 9L9 3l-3 9H2"></path>
+                </svg>
+              </div>
+              <p class="text-muted">Atur parameter proses di samping dan tekan tombol <strong>Jalankan Prediksi</strong> untuk mendapatkan evaluasi kualitas otomatis.</p>
+            </div>
+
+            <!-- Loading State -->
+            <div id="stateLoading" class="state-container" style="display: none;">
+              <div class="spinner-large"></div>
+              <p class="text-muted mt-2">Menghitung probabilitas inferensi neural network...</p>
+            </div>
+
+            <!-- Error State -->
+            <div id="stateError" class="state-container alert-card alert-danger" style="display: none;">
+              <h4 id="errorTitle">Kesalahan Prediksi</h4>
+              <p id="errorMessage" class="text-sm">Terjadi kesalahan pada server.</p>
+            </div>
+
+            <!-- Success State -->
+            <div id="stateSuccess" class="state-container" style="display: none;">
+              <div class="decision-box" id="decisionBox">
+                <div class="decision-tag">PREDIKSI MODEL</div>
+                <div class="decision-label" id="decisionLabel">Baik</div>
+                <div class="decision-desc" id="decisionDesc">Parameter proses memenuhi pola karakteristik mutu prima.</div>
+              </div>
+
+              <!-- Probability Bars -->
+              <div class="metric-progress-group">
+                <div class="metric-row">
+                  <span class="metric-name">Probabilitas Baik (Kelas 0)</span>
+                  <span class="metric-val" id="probGoodVal">0.00%</span>
+                </div>
+                <div class="progress-bar-bg">
+                  <div class="progress-bar-fill fill-good" id="probGoodBar" style="width: 0%;"></div>
+                </div>
+
+                <div class="metric-row mt-3">
+                  <span class="metric-name">Probabilitas Perlu Perbaikan (Kelas 1)</span>
+                  <span class="metric-val" id="probBadVal">0.00%</span>
+                </div>
+                <div class="progress-bar-bg">
+                  <div class="progress-bar-fill fill-bad" id="probBadBar" style="width: 0%;"></div>
+                </div>
+              </div>
+
+              <!-- Live Neuron Activity Flow Widget -->
+              <div class="neuron-live-summary mt-3">
+                <div class="neuron-summary-header">
+                  <div class="font-bold text-xs uppercase text-muted">Aktivasi Neuron Live (Forward Pass)</div>
+                  <button type="button" class="btn btn-xs btn-ghost text-primary" id="btnGoToNeuronTab">
+                    🔬 Buka Visualisasi Lengkap ➜
+                  </button>
+                </div>
+                <div class="neuron-flow-pills mt-2">
+                  <div class="flow-pill">
+                    <span class="pill-dot dot-input"></span>
+                    <span class="pill-title">Input</span>
+                    <span class="pill-val">5 Fitur</span>
+                  </div>
+                  <span class="flow-pill-arrow">➔</span>
+                  <div class="flow-pill">
+                    <span class="pill-dot dot-h1" id="liveH1Dot"></span>
+                    <span class="pill-title">Hidden 1</span>
+                    <span class="pill-val" id="liveH1Firing">-</span>
+                  </div>
+                  <span class="flow-pill-arrow">➔</span>
+                  <div class="flow-pill">
+                    <span class="pill-dot dot-h2" id="liveH2Dot"></span>
+                    <span class="pill-title">Hidden 2</span>
+                    <span class="pill-val" id="liveH2Firing">-</span>
+                  </div>
+                  <span class="flow-pill-arrow">➔</span>
+                  <div class="flow-pill">
+                    <span class="pill-dot dot-out" id="liveOutDot"></span>
+                    <span class="pill-title">Output</span>
+                    <span class="pill-val" id="liveOutFiring">-</span>
+                  </div>
+                </div>
+                
+                <!-- Mini visual neuron sparklines -->
+                <div class="minigrid-container mt-2">
+                  <div class="minigrid-row">
+                    <span class="minigrid-label">H1 (32 ReLU):</span>
+                    <div class="neuron-minigrid" id="miniGridH1"></div>
+                  </div>
+                  <div class="minigrid-row mt-1">
+                    <span class="minigrid-label">H2 (16 ReLU):</span>
+                    <div class="neuron-minigrid" id="miniGridH2"></div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Parameter Checks Table -->
+              <div class="param-summary mt-3">
+                <h4 class="text-xs font-bold uppercase text-muted mb-2">Pemeriksaan Rentang Parameter</h4>
+                <div class="param-table-wrapper">
+                  <table class="table-compact" id="paramCheckTable">
+                    <thead>
+                      <tr>
+                        <th>Parameter</th>
+                        <th>Nilai</th>
+                        <th>Status Ideal</th>
+                        <th>Status Dataset</th>
+                      </tr>
+                    </thead>
+                    <tbody id="paramCheckTableBody"></tbody>
+                  </table>
+                </div>
+              </div>
+
+              <!-- Warnings Alert Box -->
+              <div id="warningsContainer" class="alert-box alert-warning mt-3" style="display: none;">
+                <div class="font-bold text-xs uppercase mb-1">Catatan Toleransi & Rentang:</div>
+                <ul id="warningsList" class="warning-list"></ul>
+              </div>
+
+              <div class="footer-disclaimer mt-3">
+                <small>* Prediksi model adalah estimasi non-linear dari parameter proses vulkanisasi ban dan bukan merupakan sertifikat uji fisik laboratorium.</small>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- SECTION: 1. GAMBARAN -->
+      <section id="tab-overview" class="tab-panel">
+        <div class="section-header">
+          <h2>1. Gambaran Proyek & Studi Kasus Industri</h2>
+          <p class="text-muted">Latar belakang sistem klasifikasi mutu vulkanisasi ban berbasis machine learning.</p>
+        </div>
+
+        <div class="grid grid-2cols">
+          <div class="card">
+            <h3 class="card-title">Problem Statement Industri</h3>
+            <p class="text-sm text-secondary">
+              Proses vulkanisasi/curing ban melibatkan reaksi kimia non-linear yang sangat sensitif terhadap kombinasi suhu pemanasan, tekanan hidrolik cetakan, durasi pematangan, serta proporsi kompon karet. 
+            </p>
+            <p class="text-sm text-secondary mt-2">
+              Dalam operasional konvensional, kegagalan mutu baru diketahui setelah ban selesai dimasak dan diuji secara destruktif/laboratorium. Sistem ini memprediksi status kualitas secara dini saat proses berjalan:
+            </p>
+            <div class="class-pair-cards mt-3">
+              <div class="class-box box-0">
+                <div class="class-num">0</div>
+                <div class="class-title">Baik</div>
+                <div class="class-detail">Ban memenuhi standar homogenitas dan kelenturan mekanis.</div>
+              </div>
+              <div class="class-box box-1">
+                <div class="class-num">1</div>
+                <div class="class-title">Perlu Perbaikan</div>
+                <div class="class-detail">Potensi overcure/undercure; batch harus dikarantina untuk perbaikan.</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <h3 class="card-title">Arsitektur Pipeline End-to-End</h3>
+            <div class="flow-steps">
+              <div class="flow-step">
+                <div class="step-num">1</div>
+                <div class="step-info"><strong>Excel Dataset (data_ban.xlsx)</strong>: 500 sampel parameter industri</div>
+              </div>
+              <div class="flow-step">
+                <div class="step-num">2</div>
+                <div class="step-info"><strong>Audit & Stratified Split</strong>: 70% Train, 15% Validation, 15% Test (seed: 42)</div>
+              </div>
+              <div class="flow-step">
+                <div class="step-num">3</div>
+                <div class="step-info"><strong>StandardScaler</strong>: Fit hanya pada train set untuk mencegah data leakage</div>
+              </div>
+              <div class="flow-step">
+                <div class="step-num">4</div>
+                <div class="step-info"><strong>PyTorch MLP + ReLU</strong>: Pemodelan interaksi non-linear dengan loss berbobot</div>
+              </div>
+              <div class="flow-step">
+                <div class="step-num">5</div>
+                <div class="step-info"><strong>Validasi Threshold</strong>: Optimasi F1 / Recall kelas Perlu Perbaikan</div>
+              </div>
+              <div class="flow-step">
+                <div class="step-num">6</div>
+                <div class="step-info"><strong>JSON Artifacts & FastAPI</strong>: Inferensi produksi konsisten dan deterministik</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- SECTION: 2. DATA & KARAKTERISTIK -->
+      <section id="tab-data" class="tab-panel">
+        <div class="section-header">
+          <h2>2. Karakteristik & Spesifikasi Dataset</h2>
+          <p class="text-muted">Distribusi data dan batasan variabel proses dalam sheet <code>data_ban</code>.</p>
+        </div>
+
+        <div class="grid grid-3cols mb-3">
+          <div class="card text-center">
+            <div class="stat-number">500</div>
+            <div class="stat-label">Total Sampel Observasi</div>
+          </div>
+          <div class="card text-center">
+            <div class="stat-number text-success">325 (65%)</div>
+            <div class="stat-label">Kelas 0: Baik</div>
+          </div>
+          <div class="card text-center">
+            <div class="stat-number text-danger">175 (35%)</div>
+            <div class="stat-label">Kelas 1: Perlu Perbaikan</div>
+          </div>
+        </div>
+
+        <div class="card mb-3">
+          <h3 class="card-title">Skema Fitur Produksi vs Analisis Offline</h3>
+          <div class="table-responsive">
+            <table class="table">
+              <thead>
+                <tr>
+                  <th>Nama Fitur</th>
+                  <th>Peran Sistem</th>
+                  <th>Satuan</th>
+                  <th>Rentang Dataset</th>
+                  <th>Rentang Ideal</th>
+                  <th>Keterangan Domain</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><code>suhu</code></td>
+                  <td><span class="badge badge-primary">Input Live</span></td>
+                  <td>°C</td>
+                  <td>140.2 – 180.0</td>
+                  <td><strong>150.0 – 165.0</strong></td>
+                  <td>Suhu plat pemanas curing vulkanisasi</td>
+                </tr>
+                <tr>
+                  <td><code>tekanan</code></td>
+                  <td><span class="badge badge-primary">Input Live</span></td>
+                  <td>bar</td>
+                  <td>15.0 – 25.0</td>
+                  <td><strong>18.0 – 22.0</strong></td>
+                  <td>Tekanan bladder kompresi ban</td>
+                </tr>
+                <tr>
+                  <td><code>waktu_curing</code></td>
+                  <td><span class="badge badge-primary">Input Live</span></td>
+                  <td>menit</td>
+                  <td>8.0 – 15.0</td>
+                  <td><strong>10.0 – 13.0</strong></td>
+                  <td>Durasi siklus pematangan karet</td>
+                </tr>
+                <tr>
+                  <td><code>rasio_karet</code></td>
+                  <td><span class="badge badge-primary">Input Live</span></td>
+                  <td>-</td>
+                  <td>0.40 – 0.80</td>
+                  <td><strong>0.50 – 0.70</strong></td>
+                  <td>Komposisi karet alam vs filler sintetis</td>
+                </tr>
+                <tr>
+                  <td><code>kekerasan_karet</code></td>
+                  <td><span class="badge badge-primary">Input Live</span></td>
+                  <td>Shore A</td>
+                  <td>55.1 – 75.0</td>
+                  <td><strong>60.0 – 70.0</strong></td>
+                  <td>Pengukuran kekerasan fisik karet secara live/in-line saat proses produksi.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- SECTION: 3. PREPROCESSING -->
+      <section id="tab-preprocessing" class="tab-panel">
+        <div class="section-header">
+          <h2>3. Pipeline Preprocessing & Pencegahan Leakage</h2>
+          <p class="text-muted">Proses transformasi data menjamin kemandirian data validasi dan pengujian.</p>
+        </div>
+
+        <div class="card mb-3">
+          <h3 class="card-title">Diagram Transformasi Data</h3>
+          <div class="pipeline-visual">
+            <div class="pipe-box">Raw Excel Data (500)</div>
+            <div class="pipe-arrow">➜</div>
+            <div class="pipe-box">Validasi Tipe & Rentang</div>
+            <div class="pipe-arrow">➜</div>
+            <div class="pipe-box highlight">Stratified Split (70/15/15)</div>
+            <div class="pipe-arrow">➜</div>
+            <div class="pipe-box highlight">Fit Scaler (Hanya Train)</div>
+            <div class="pipe-arrow">➜</div>
+            <div class="pipe-box">Serialisasi ke scaler.json</div>
+          </div>
+        </div>
+
+        <div class="grid grid-2cols">
+          <div class="card">
+            <h3 class="card-title">Aturan Data Leakage</h3>
+            <ul class="bullet-list text-sm">
+              <li><strong>Zero Leakage:</strong> <code>StandardScaler</code> hanya di-fit pada 350 sampel training set. Nilai mean dan varians disimpan dalam format JSON murni.</li>
+              <li><strong>Distribusi Stratifikasi:</strong> Proporsi kelas 65% : 35% dipertahankan secara identik pada Train (350), Val (75), dan Test (75).</li>
+              <li><strong>Holdout Test Set:</strong> Data pengujian tidak pernah disentuh selama optimasi loss maupun pemilihan threshold keputusan.</li>
+            </ul>
+          </div>
+
+          <div class="card">
+            <h3 class="card-title">Parameter StandardScaler Tersimpan</h3>
+            <div id="scalerParamsContainer" class="code-box">
+              <pre><code id="scalerJsonSnippet">Memuat scaler.json...</code></pre>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- SECTION: 4. MODEL RELU -->
+      <section id="tab-model" class="tab-panel">
+        <div class="section-header">
+          <h2>4. Arsitektur Neural Network MLP + ReLU & Visualisasi Neuron</h2>
+          <p class="text-muted">Eksplorasi interaktif topologi jaringan saraf tiruan (5 ➜ 32 ➜ 16 ➜ 1), bobot sinapsis, dan aktivasi fungsi ReLU secara real-time.</p>
+        </div>
+
+        <!-- MAIN INTERACTIVE NEURON VISUALIZER CARD -->
+        <div class="card neuron-viz-card mb-3">
+          <div class="card-header">
+            <div>
+              <h3 class="card-title">Topologi Jaringan & Propagasi Aktivasi Neuron</h3>
+              <p class="text-xs text-muted">Arahkan kursor atau klik neuron mana saja untuk membedah nilai pre-aktivasi, fungsi ReLU, dan bobot sinapsis.</p>
+            </div>
+            <div class="viz-controls-header">
+              <div class="synapse-toggle-group">
+                <span class="text-xs text-muted font-bold">Koneksi:</span>
+                <select id="synapseModeSelect" class="form-control-sm">
+                  <option value="firing">Hanya Neuron Aktif (Rekomendasi)</option>
+                  <option value="all">Semua Sinapsis (688 Bobot)</option>
+                  <option value="selected">Hanya Neuron Terpilih</option>
+                  <option value="none">Sembunyikan Garis</option>
+                </select>
+              </div>
+              <div class="preset-dropdown">
+                <span class="text-xs text-muted font-bold">Preset:</span>
+                <button type="button" class="btn btn-sm btn-ghost" id="vizPresetIdeal">Ideal</button>
+                <button type="button" class="btn btn-sm btn-ghost" id="vizPresetOvercure">Overcure</button>
+                <button type="button" class="btn btn-sm btn-ghost" id="vizPresetUndercure">Undercure</button>
+                <button type="button" class="btn btn-sm btn-ghost" id="vizSyncFromForm" title="Ambil parameter dari form Demo Live">Sync Form Live</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Canvas Display Area -->
+          <div class="neuron-canvas-container" id="neuronCanvasContainer">
+            <canvas id="neuronCanvas" width="960" height="500"></canvas>
+            <div id="neuronTooltip" class="neuron-tooltip" style="display: none;"></div>
+          </div>
+
+          <!-- Layer Status Telemetry Bar -->
+          <div class="layer-telemetry-bar mt-2">
+            <div class="telemetry-item">
+              <span class="telemetry-badge badge-input">Input Layer</span>
+              <span class="telemetry-text" id="telInputText">5 Fitur Proses (Ternormalisasi)</span>
+            </div>
+            <div class="telemetry-item">
+              <span class="telemetry-badge badge-h1">Hidden 1 (32 ReLU)</span>
+              <span class="telemetry-text" id="telH1Text">Memuat aktivasi...</span>
+            </div>
+            <div class="telemetry-item">
+              <span class="telemetry-badge badge-h2">Hidden 2 (16 ReLU)</span>
+              <span class="telemetry-text" id="telH2Text">Memuat aktivasi...</span>
+            </div>
+            <div class="telemetry-item">
+              <span class="telemetry-badge badge-out">Output (1 Sigmoid)</span>
+              <span class="telemetry-text" id="telOutText">Memuat hasil...</span>
+            </div>
+          </div>
+
+          <!-- Interactive Sliders for Live Simulation -->
+          <div class="viz-simulation-panel mt-3">
+            <div class="sim-header">
+              <span class="font-bold text-xs uppercase text-secondary">Eksplorasi Nilai Input Real-time:</span>
+              <span class="text-xs text-muted">Geser untuk melihat perubahan aktivasi ReLU dan keputusan model seketika</span>
+            </div>
+            <div class="grid grid-5cols mt-2">
+              <div class="sim-slider-col">
+                <div class="sim-slider-label">
+                  <span>Suhu Curing</span>
+                  <strong id="simValSuhu">160.0 °C</strong>
+                </div>
+                <input type="range" id="simSliderSuhu" min="140" max="180" step="0.5" value="160.0" class="slider-control">
+              </div>
+              <div class="sim-slider-col">
+                <div class="sim-slider-label">
+                  <span>Tekanan</span>
+                  <strong id="simValTekanan">20.0 bar</strong>
+                </div>
+                <input type="range" id="simSliderTekanan" min="15" max="25" step="0.1" value="20.0" class="slider-control">
+              </div>
+              <div class="sim-slider-col">
+                <div class="sim-slider-label">
+                  <span>Waktu Curing</span>
+                  <strong id="simValWaktu">11.5 min</strong>
+                </div>
+                <input type="range" id="simSliderWaktu" min="8" max="15" step="0.1" value="11.5" class="slider-control">
+              </div>
+              <div class="sim-slider-col">
+                <div class="sim-slider-label">
+                  <span>Rasio Karet</span>
+                  <strong id="simValRasio">0.60</strong>
+                </div>
+                <input type="range" id="simSliderRasio" min="0.4" max="0.8" step="0.01" value="0.60" class="slider-control">
+              </div>
+              <div class="sim-slider-col">
+                <div class="sim-slider-label">
+                  <span>Kekerasan Karet</span>
+                  <strong id="simValKekerasan">65.0 Shore A</strong>
+                </div>
+                <input type="range" id="simSliderKekerasan" min="55" max="75" step="0.1" value="65.0" class="slider-control">
+              </div>
+            </div>
+          </div>
+
+          <!-- Color Legend & Explanation -->
+          <div class="viz-legend-bar mt-3">
+            <div class="legend-group">
+              <span class="legend-pill"><span class="legend-dot active-glow"></span> Neuron Aktif Firing (a &gt; 0)</span>
+              <span class="legend-pill"><span class="legend-dot inactive-dot"></span> Dinonaktifkan ReLU (a = 0)</span>
+              <span class="legend-pill"><span class="legend-line line-pos"></span> Bobot Positif (w &gt; 0)</span>
+              <span class="legend-pill"><span class="legend-line line-neg"></span> Bobot Negatif (w &lt; 0)</span>
+            </div>
+            <div class="legend-note text-xs text-muted">
+              * Ketebalan garis menunjukkan magnitudo |w|. Intensitas cahaya lingkaran menunjukkan besarnya aktivasi f(z).
+            </div>
+          </div>
+
+          <!-- Inspector Panel for Selected Neuron -->
+          <div class="neuron-inspector-box mt-3" id="neuronInspectorBox">
+            <div class="inspector-header">
+              <div class="inspector-title font-bold text-sm" id="insTitle">Inspeksi Detail Neuron: Klik atau sorot salah satu neuron di atas</div>
+              <span class="badge" id="insBadge">Pilih Neuron</span>
+            </div>
+            <div class="inspector-body grid grid-3cols mt-2" id="insBody">
+              <div class="ins-metric">
+                <span class="ins-label">Nilai Pre-Aktivasi (z)</span>
+                <span class="ins-value font-mono" id="insPreVal">-</span>
+                <small class="text-xs text-muted" id="insPreDesc">Jumlah terbobot + bias: ∑ w·x + b</small>
+              </div>
+              <div class="ins-metric">
+                <span class="ins-label">Pasca-Aktivasi (a = ReLU(z))</span>
+                <span class="ins-value font-mono" id="insPostVal">-</span>
+                <small class="text-xs text-muted" id="insPostDesc">max(0, z) — dipangkas jika negatif</small>
+              </div>
+              <div class="ins-metric">
+                <span class="ins-label">Status & Karakteristik</span>
+                <span class="ins-value" id="insStatusVal">-</span>
+                <small class="text-xs text-muted" id="insStatusDesc">Bias neuron: -</small>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="grid grid-2cols">
+          <div class="card">
+            <h3 class="card-title">Struktur Lapisan Jaringan</h3>
+            <div class="nn-diagram">
+              <div class="nn-layer">
+                <span class="layer-badge">Input</span>
+                <span class="layer-title">5 Fitur Proses</span>
+                <span class="layer-detail">[suhu, tekanan, waktu_curing, rasio_karet, kekerasan_karet]</span>
+              </div>
+              <div class="nn-connector">↓ Linear(5, 32) + ReLU</div>
+              <div class="nn-layer">
+                <span class="layer-badge">Hidden 1</span>
+                <span class="layer-title">32 Neuron</span>
+                <span class="layer-detail">Aktivasi Rectified Linear Unit (ReLU)</span>
+              </div>
+              <div class="nn-connector">↓ Linear(32, 16) + ReLU + Dropout(0.10)</div>
+              <div class="nn-layer">
+                <span class="layer-badge">Hidden 2</span>
+                <span class="layer-title">16 Neuron</span>
+                <span class="layer-detail">Aktivasi ReLU + Regularisasi Dropout 10%</span>
+              </div>
+              <div class="nn-connector">↓ Linear(16, 1)</div>
+              <div class="nn-layer">
+                <span class="layer-badge">Output</span>
+                <span class="layer-title">1 Logit</span>
+                <span class="layer-detail">BCEWithLogitsLoss (Train) / Sigmoid (Inference)</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <h3 class="card-title">Mengapa MLP & ReLU?</h3>
+            <p class="text-sm text-secondary">
+              Dalam pengolahan karet, kenaikan suhu sedikit saja melampaui batas toleransi saat rasio karet rendah akan memicu degradasi termal (hangus/overcure), sedangkan suhu terlalu rendah memicu undercure. Fenomena ini membentuk interaksi non-linear cembung (convex/boundary) yang tidak dapat dipisahkan secara sempurna oleh garis linier.
+            </p>
+            <div class="feature-card mt-3">
+              <div class="font-bold text-sm">Fungsi Loss: BCEWithLogitsLoss(pos_weight)</div>
+              <p class="text-xs text-muted mt-1">
+                Menggabungkan perhitungan Sigmoid dan Cross Entropy secara numerik stabil. Memberikan penalti <code>pos_weight ≈ 1.87</code> pada kelas 1 (Perlu Perbaikan) untuk memprioritaskan Recall keselamatan proses.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- SECTION: 5. TRAINING LOOP -->
+      <section id="tab-training" class="tab-panel">
+        <div class="section-header">
+          <h2>5. Monitoring Training Loop & Konvergensi</h2>
+          <p class="text-muted">Hasil tracking per-epoch, kurva loss, dan mekanisme early stopping.</p>
+        </div>
+
+        <div class="grid grid-4cols mb-3" id="trainingSummaryCards">
+          <div class="card text-center">
+            <div class="stat-number" id="bestEpochVal">-</div>
+            <div class="stat-label">Epoch Terbaik</div>
+          </div>
+          <div class="card text-center">
+            <div class="stat-number" id="totalEpochsVal">-</div>
+            <div class="stat-label">Total Epoch Dilatih</div>
+          </div>
+          <div class="card text-center">
+            <div class="stat-number text-primary" id="bestValLossVal">-</div>
+            <div class="stat-label">Validation Loss Terendah</div>
+          </div>
+          <div class="card text-center">
+            <div class="stat-number" id="posWeightVal">-</div>
+            <div class="stat-label">Pos Weight Kelas 1</div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3 class="card-title">Grafik Konvergensi Loss (Train vs Validation)</h3>
+          <div class="chart-container">
+            <canvas id="lossChart" width="800" height="260"></canvas>
+          </div>
+          <div class="chart-legend mt-2">
+            <span class="legend-item"><span class="legend-color legend-train"></span> Train Loss</span>
+            <span class="legend-item"><span class="legend-color legend-val"></span> Validation Loss</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- SECTION: 6. EVALUASI MODEL -->
+      <section id="tab-evaluation" class="tab-panel">
+        <div class="section-header">
+          <h2>6. Hasil Evaluasi Akhir pada Holdout Test Set</h2>
+          <p class="text-muted">Metrik objektif dihitung satu kali pada 75 sampel data uji independen.</p>
+        </div>
+
+        <!-- KPI Cards Grid -->
+        <div class="grid grid-4cols mb-3">
+          <div class="card text-center">
+            <div class="stat-number text-primary" id="kpiAccuracy">-</div>
+            <div class="stat-label">Accuracy</div>
+          </div>
+          <div class="card text-center highlight-card">
+            <div class="stat-number text-accent" id="kpiRecall1">-</div>
+            <div class="stat-label">Recall (Perlu Perbaikan)</div>
+          </div>
+          <div class="card text-center">
+            <div class="stat-number text-success" id="kpiPrecision1">-</div>
+            <div class="stat-label">Precision (Perlu Perbaikan)</div>
+          </div>
+          <div class="card text-center">
+            <div class="stat-number text-warning" id="kpiF1">-</div>
+            <div class="stat-label">F1-Score (Kelas 1)</div>
+          </div>
+        </div>
+
+        <div class="grid grid-2cols mb-3">
+          <!-- Confusion Matrix Card -->
+          <div class="card">
+            <h3 class="card-title">Confusion Matrix (Test Set: 75 Sampel)</h3>
+            <p class="text-xs text-muted mb-3">Threshold Keputusan: <strong id="evalThresholdVal">0.50</strong></p>
+            <div class="confusion-matrix-wrapper">
+              <div class="cm-grid">
+                <div class="cm-cell cm-header"></div>
+                <div class="cm-cell cm-header font-bold">Prediksi Baik (0)</div>
+                <div class="cm-cell cm-header font-bold">Prediksi Perbaikan (1)</div>
+                
+                <div class="cm-cell cm-label font-bold">Aktual Baik (0)</div>
+                <div class="cm-cell cm-data cm-tn">
+                  <div class="cm-val" id="cmTN">-</div>
+                  <div class="cm-sub">True Negative</div>
+                </div>
+                <div class="cm-cell cm-data cm-fp">
+                  <div class="cm-val" id="cmFP">-</div>
+                  <div class="cm-sub">False Positive</div>
+                </div>
+
+                <div class="cm-cell cm-label font-bold">Aktual Perbaikan (1)</div>
+                <div class="cm-cell cm-data cm-fn">
+                  <div class="cm-val" id="cmFN">-</div>
+                  <div class="cm-sub">False Negative (Kritis)</div>
+                </div>
+                <div class="cm-cell cm-data cm-tp">
+                  <div class="cm-val" id="cmTP">-</div>
+                  <div class="cm-sub">True Positive</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Baseline Comparison Card -->
+          <div class="card">
+            <h3 class="card-title">Perbandingan vs Baseline Linear</h3>
+            <p class="text-xs text-muted mb-2">Memverifikasi keunggulan representasi non-linear PyTorch MLP dibandingkan Logistic Regression.</p>
+            <div class="table-responsive">
+              <table class="table">
+                <thead>
+                  <tr>
+                    <th>Metrik</th>
+                    <th>PyTorch MLP + ReLU</th>
+                    <th>Logistic Regression</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>Accuracy</td>
+                    <td><strong class="text-primary" id="mlpAcc">-</strong></td>
+                    <td id="baseAcc">-</td>
+                  </tr>
+                  <tr>
+                    <td>Recall Kelas 1</td>
+                    <td><strong class="text-accent" id="mlpRec">-</strong></td>
+                    <td id="baseRec">-</td>
+                  </tr>
+                  <tr>
+                    <td>F1-Score Kelas 1</td>
+                    <td><strong class="text-warning" id="mlpF1">-</strong></td>
+                    <td id="baseF1">-</td>
+                  </tr>
+                  <tr>
+                    <td>ROC-AUC</td>
+                    <td><strong id="mlpRoc">-</strong></td>
+                    <td id="baseRoc">-</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- SECTION: 7. SIMPAN JSON & ARTIFACTS -->
+      <section id="tab-artifacts" class="tab-panel">
+        <div class="section-header">
+          <h2>7. Manajemen File Artifacts & Metadata</h2>
+          <p class="text-muted">Integritas model terjamin melalui penyimpanan bobot PyTorch dan metadata preprocessing JSON.</p>
+        </div>
+
+        <div class="grid grid-2cols">
+          <div class="card">
+            <h3 class="card-title">Daftar Berkas Artifact Produksi</h3>
+            <div class="artifact-items">
+              <div class="artifact-item">
+                <span class="file-icon">📄</span>
+                <div class="file-info">
+                  <strong>model.pt</strong>
+                  <div class="text-xs text-muted">PyTorch model state dictionary (bobot neural network)</div>
+                </div>
+              </div>
+              <div class="artifact-item">
+                <span class="file-icon">⚙️</span>
+                <div class="file-info">
+                  <strong>model_config.json</strong>
+                  <div class="text-xs text-muted">Definisi arsitektur, daftar fitur, threshold, dan versi pustaka</div>
+                </div>
+              </div>
+              <div class="artifact-item">
+                <span class="file-icon">📊</span>
+                <div class="file-info">
+                  <strong>scaler.json</strong>
+                  <div class="text-xs text-muted">Parameter mean dan scale dari StandardScaler training</div>
+                </div>
+              </div>
+              <div class="artifact-item">
+                <span class="file-icon">📋</span>
+                <div class="file-info">
+                  <strong>hasil_evaluasi.json</strong>
+                  <div class="text-xs text-muted">Laporan komprehensif metrik uji, confusion matrix, & error analysis</div>
+                </div>
+              </div>
+              <div class="artifact-item">
+                <span class="file-icon">📈</span>
+                <div class="file-info">
+                  <strong>training_history.json</strong>
+                  <div class="text-xs text-muted">Rekam jejak loss dan accuracy epoch per epoch</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <h3 class="card-title">Isi Ringkasan model_config.json</h3>
+            <div class="code-box">
+              <pre><code id="configJsonDisplay">Memuat konfigurasi...</code></pre>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- SECTION: 8. CARA MENJALANKAN -->
+      <section id="tab-guide" class="tab-panel">
+        <div class="section-header">
+          <h2>8. Panduan Eksekusi & Pengujian Lokal</h2>
+          <p class="text-muted">Langkah-langkah menjalankan seluruh sistem dari CLI.</p>
+        </div>
+
+        <div class="card mb-3">
+          <h3 class="card-title">Perintah Terminal (PowerShell / Bash)</h3>
+          
+          <div class="cmd-block mb-3">
+            <div class="cmd-label">1. Persiapan Virtual Environment & Dependensi</div>
+            <pre><code>python -m venv .venv
+.venv\Scripts\Activate.ps1
+pip install -r requirements.txt</code></pre>
+          </div>
+
+          <div class="cmd-block mb-3">
+            <div class="cmd-label">2. Menjalankan Training Pipeline & Pembuatan Artifacts</div>
+            <pre><code>python -m ml.train --data data/data_ban.xlsx --sheet data_ban --epochs 200 --batch-size 32 --lr 0.001 --seed 42</code></pre>
+          </div>
+
+          <div class="cmd-block mb-3">
+            <div class="cmd-label">3. Menjalankan REST API & Web Dashboard</div>
+            <pre><code>uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload</code></pre>
+            <small class="text-muted">Akses Dashboard di <a href="http://127.0.0.1:8000" target="_blank">http://127.0.0.1:8000</a> dan Swagger API di <a href="http://127.0.0.1:8000/docs" target="_blank">http://127.0.0.1:8000/docs</a></small>
+          </div>
+
+          <div class="cmd-block">
+            <div class="cmd-label">4. Menjalankan Automated Testing (Pytest)</div>
+            <pre><code>python -m pytest -v</code></pre>
+          </div>
+        </div>
+      </section>
+
+    </div>
+  </main>
+
+  <!-- Footer -->
+  <footer class="app-footer">
+    <div class="container text-center">
+      <p class="text-xs text-muted">Ban Quality Machine Learning System — PyTorch MLP & FastAPI Architecture</p>
+    </div>
+  </footer>
+
+  <script src="/static/js/app.js?v=4.0"></script>
+</body>
+</html>
